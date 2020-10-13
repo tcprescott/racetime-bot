@@ -334,7 +334,7 @@ class RaceHandler:
         })
         await self.begin()
         while True:
-            data = self.ws.receive_json()
+            data = await self.ws.receive_json()
             await self.consume(data)
             if self.should_stop():
                 await self.end()
