@@ -1,6 +1,8 @@
 import json
 import uuid
 
+from aiohttp import ClientWebSocketResponse
+
 
 class RaceHandler:
     """
@@ -13,7 +15,7 @@ class RaceHandler:
     # This is used by `should_stop` to determine when the handler should quit.
     stop_at = ['cancelled', 'finished']
 
-    def __init__(self, logger, conn, state, command_prefix='!'):
+    def __init__(self, logger, conn: ClientWebSocketResponse, state, command_prefix='!'):
         """
         Base handler constructor.
 
@@ -31,12 +33,11 @@ class RaceHandler:
         recreated (e.g. due to disconnect). Use it for any information you
         want.
         """
-        self.conn = conn
+        self.ws = conn
         self.data = {}
         self.logger = logger
         self.state = state
         self.command_prefix = command_prefix
-        self.ws = None
 
     def should_stop(self):
         """
@@ -141,13 +142,13 @@ class RaceHandler:
 
         `message` should be the message string you want to send.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'message',
             'data': {
                 'message': message,
                 'guid': str(uuid.uuid4()),
             }
-        }))
+        })
         self.logger.info('[%(race)s] Message: "%(message)s"' % {
             'race': self.data.get('name'),
             'message': message,
@@ -168,10 +169,10 @@ class RaceHandler:
             else:
                 info = self.data.get('info') + ' | ' + info
 
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'setinfo',
             'data': {'info': info}
-        }))
+        })
         self.logger.info('[%(race)s] Set info: "%(info)s"' % {
             'race': self.data.get('name'),
             'info': info,
@@ -181,9 +182,9 @@ class RaceHandler:
         """
         Set the room in an open state.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'make_open'
-        }))
+        })
         self.logger.info('[%(race)s] Make open' % {
             'race': self.data.get('name')
         })
@@ -192,9 +193,9 @@ class RaceHandler:
         """
         Set the room in an invite-only state.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'make_invitational'
-        }))
+        })
         self.logger.info('[%(race)s] Make invitational' % {
             'race': self.data.get('name')
         })
@@ -203,9 +204,9 @@ class RaceHandler:
         """
         Forces a start of the race.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'begin'
-        }))
+        })
         self.logger.info('[%(race)s] Forced start' % {
             'race': self.data.get('name')
         })
@@ -214,9 +215,9 @@ class RaceHandler:
         """
         Forcibly cancels a race.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'cancel'
-        }))
+        })
         self.logger.info('[%(race)s] cancelled' % {
             'race': self.data.get('name')
         })
@@ -227,12 +228,12 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'invite',
             'data': {
                 'user': user
             }
-        }))
+        })
         self.logger.info('[%(race)s] invited %(user)s' % {
             'race': self.data.get('name'),
             'user': user
@@ -244,12 +245,12 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'accept_request',
             'data': {
                 'user': user
             }
-        }))
+        })
         self.logger.info('[%(race)s] accept join request %(user)s' % {
             'race': self.data.get('name'),
             'user': user
@@ -261,12 +262,12 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'force_unready',
             'data': {
                 'user': user
             }
-        }))
+        })
         self.logger.info('[%(race)s] force unready %(user)s' % {
             'race': self.data.get('name'),
             'user': user
@@ -278,12 +279,12 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'remove_entrant',
             'data': {
                 'user': user
             }
-        }))
+        })
         self.logger.info('[%(race)s] removed entrant %(user)s' % {
             'race': self.data.get('name'),
             'user': user
@@ -295,12 +296,12 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'add_monitor',
             'data': {
                 'user': user
             }
-        }))
+        })
         self.logger.info('[%(race)s] added race monitor %(user)s' % {
             'race': self.data.get('name'),
             'user': user
@@ -312,12 +313,12 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'remove_monitor',
             'data': {
                 'user': user
             }
-        }))
+        })
         self.logger.info('[%(race)s] added race monitor %(user)s' % {
             'race': self.data.get('name'),
             'user': user
@@ -331,12 +332,10 @@ class RaceHandler:
         self.logger.info('[%(race)s] Handler started' % {
             'race': self.data.get('name'),
         })
-        async with self.conn as ws:
-            self.ws = ws
-            await self.begin()
-            async for message in self.ws:
-                data = json.loads(message)
-                await self.consume(data)
-                if self.should_stop():
-                    await self.end()
-                    break
+        await self.begin()
+        while True:
+            data = self.ws.receive_json()
+            await self.consume(data)
+            if self.should_stop():
+                await self.end()
+                break
