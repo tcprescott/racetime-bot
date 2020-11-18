@@ -203,10 +203,16 @@ class RaceHandler:
         for keyword in kwargs:
             if keyword == 'goal':
                 settings[keyword] = kwargs[keyword]
-                del settings['custom_goal']
+                try:
+                    del settings['custom_goal']
+                except KeyError:
+                    pass
             elif keyword == 'custom_goal':
                 settings['custom_goal'] = kwargs['custom_goal']
-                del settings['goal']
+                try:
+                    del settings['goal']
+                except KeyError:
+                    pass
             else:
                 settings[keyword] = kwargs[keyword]
 
