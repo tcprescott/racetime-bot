@@ -428,6 +428,9 @@ class RaceHandler:
                 message = await self.ws.receive()
                 self.logger.warning(f"Received invalid data of type {message.type}")
                 print(message.data)
+            except ValueError:
+                message = await self.ws.receive()
+                self.logger.warning(f"Ignored message that was invalid json of type {message.type}.")
             if self.should_stop():
                 await self.end()
                 break
