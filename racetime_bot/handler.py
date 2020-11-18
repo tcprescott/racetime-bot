@@ -421,8 +421,13 @@ class RaceHandler:
         })
         await self.begin()
         while True:
-            data = await self.ws.receive_json()
-            await self.consume(data)
+            try:
+                data = await self.ws.receive_json()
+                await self.consume(data)
+            except Exception as e:
+                self.logger.exception("Unable to process websocket data.")
+                continue
+
             if self.should_stop():
                 await self.end()
                 break
