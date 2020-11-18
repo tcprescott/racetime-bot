@@ -421,8 +421,13 @@ class RaceHandler:
         })
         await self.begin()
         while True:
-            data = await self.ws.receive_json()
-            await self.consume(data)
+            try:
+                data = await self.ws.receive_json()
+                await self.consume(data)
+            except TypeError:
+                message = await self.ws.receive()
+                self.logger.warning(f"Received invalid data of type {message.type}")
+                print(message.data)
             if self.should_stop():
                 await self.end()
                 break
