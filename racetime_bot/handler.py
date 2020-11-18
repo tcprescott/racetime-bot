@@ -1,7 +1,9 @@
-import json
 import uuid
 
-from aiohttp import ClientWebSocketResponse
+import isodate
+from aiohttp import ClientWebSocketResponse, ClientResponseError
+from tenacity import RetryError, AsyncRetrying, stop_after_attempt, retry_if_exception_type, wait_exponential
+
 
 
 class RaceHandler:
@@ -15,7 +17,7 @@ class RaceHandler:
     # This is used by `should_stop` to determine when the handler should quit.
     stop_at = ['cancelled', 'finished']
 
-    def __init__(self, logger, conn: ClientWebSocketResponse, state, command_prefix='!'):
+    def __init__(self, logger, conn: ClientWebSocketResponse, bot, state, command_prefix='!'):
         """
         Base handler constructor.
 
@@ -25,6 +27,7 @@ class RaceHandler:
         * logger - The logger instance bot was instantiated with.
         * state - A dict of stateful data for this race
         * ws - The open WebSocket, used internally.
+        * bot - The parent bot object, useful for creating new race rooms.
 
         About data vs state - data is the race information retrieved from the
         server and can be read by your handler, but should not be written to.
@@ -38,6 +41,7 @@ class RaceHandler:
         self.logger = logger
         self.state = state
         self.command_prefix = command_prefix
+        self.bot = bot
 
     def should_stop(self):
         """
@@ -111,8 +115,8 @@ class RaceHandler:
             self.logger.info('Ignoring bot/system message.')
             return
 
-        words = message.get('message', '').lower().split(' ')
-        if words and words[0].startswith(self.command_prefix.lower()):
+        words = message.get('message', '').split(' ')
+        if words and words[0].startswith(self.command_prefix):
             method = 'ex_' + words[0][len(self.command_prefix):]
             args = words[1:]
             if hasattr(self, method):
@@ -153,6 +157,83 @@ class RaceHandler:
             'race': self.data.get('name'),
             'message': message,
         })
+
+    async def edit(self, **kwargs):
+        """
+        Edits the race.  For valid options, see
+        https://github.com/racetimeGG/racetime-app/wiki/Category-bots#start-and-edit-races
+
+        This method allows you to only pass what you actually want to change.
+        Anything not specified will be pulled from the race room's data.
+        """
+
+        name = self.data.get('name')
+        status = self.data.get('status', {}).get('value')
+
+        if status in ['finished', 'cancelled']:
+            # TODO raise a better exception
+            raise Exception('Cannot edit a race that has finished or been cancelled.')
+
+        if 'invitational' in kwargs:
+            # TODO use a specific error class
+            raise Exception('Cannot set invitational status.  Use make_open or make_invitational instead.')
+
+        if kwargs.get('goal') and kwargs.get('custom_goal'):
+            # TODO use a specific error class
+            raise Exception('Either a goal or custom_goal can be specified, but not both.')
+
+        settings = {}
+
+        if self.data['goal'].get('custom'):
+            settings['custom_goal'] = self.data['goal']['name']
+        else:
+            settings['goal'] = self.data['goal']['name']
+
+        settings['unlisted'] = self.data['unlisted']
+        settings['info'] = self.data['info']
+        settings['start_delay'] = round(isodate.parse_duration(self.data['start_delay']).total_seconds())
+        settings['time_limit'] = round(isodate.parse_duration(self.data['time_limit']).total_seconds()/3600)
+        settings['streaming_required'] = self.data['streaming_required']
+        settings['auto_start'] = self.data['auto_start']
+        settings['allow_comments'] = self.data['allow_comments']
+        settings['allow_midrace_chat'] = self.data['allow_midrace_chat']
+        settings['allow_non_entrant_chat'] = self.data['allow_non_entrant_chat']
+        settings['chat_message_delay'] = round(isodate.parse_duration(self.data['chat_message_delay']).total_seconds())
+
+        for keyword in kwargs:
+            if keyword == 'goal':
+                settings[keyword] = kwargs[keyword]
+                del settings['custom_goal']
+            elif keyword == 'custom_goal':
+                settings['custom_goal'] = kwargs['custom_goal']
+                del settings['goal']
+            else:
+                settings[keyword] = kwargs[keyword]
+
+        if not status in ['open', 'invitational']:
+            for k in ['goal', 'custom_goal', 'start_delay', 'time_limit', 'streaming_required', 'auto_start']:
+                del settings[k]
+
+        try:
+            async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(5),
+                    retry=retry_if_exception_type(ClientResponseError),
+                    wait=wait_exponential(multiplier=1, min=4, max=10)):
+                with attempt:
+                    async with self.bot.http.post(
+                        url=self.bot.http_uri(f'/o/{name}/edit'),
+                        data=settings,
+                        ssl=self.bot.ssl_context,
+                        headers={
+                            'Authorization': 'Bearer ' + self.bot.access_token,
+                        }
+                    ) as resp:
+                        if resp.status == 200:
+                            return True
+        except RetryError as e:
+            raise e.last_attempt._exception from e
+
+        raise Exception('Received an unexpected response while editing a race.')
 
     async def set_raceinfo(self, info, overwrite=False, prefix=True):
         """

@@ -20,6 +20,8 @@ setup(
     version='1.7.0',
     install_requires=[
         'aiohttp',
+        'isodate',
+        'tenacity',
     ],
     packages=find_packages(),
 )

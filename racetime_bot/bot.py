@@ -3,6 +3,7 @@ import json
 from functools import partial
 
 import aiohttp
+from tenacity import RetryError, AsyncRetrying, stop_after_attempt, retry_if_exception_type, wait_exponential
 
 from .handler import RaceHandler
 
@@ -85,15 +86,22 @@ class Bot:
         """
         Get an OAuth2 token from the authentication server.
         """
-        async with self.http.post(self.http_uri('/o/token'), data={
-            'client_id': self.client_id,
-            'client_secret': self.client_secret,
-            'grant_type': 'client_credentials',
-        }, ssl=self.ssl_context) as resp:
-            data = await resp.json()
-            if not data.get('access_token'):
-                raise Exception('Unable to retrieve access token.')
-            return data.get('access_token'), data.get('expires_in', 36000)
+        try:
+            async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(5),
+                    retry=retry_if_exception_type(aiohttp.ClientResponseError)):
+                with attempt:
+                    async with self.http.post(self.http_uri('/o/token'), data={
+                        'client_id': self.client_id,
+                        'client_secret': self.client_secret,
+                        'grant_type': 'client_credentials',
+                    }, ssl=self.ssl_context) as resp:
+                        data = await resp.json()
+                        if not data.get('access_token'):
+                            raise Exception('Unable to retrieve access token.')
+                        return data.get('access_token'), data.get('expires_in', 36000)
+        except RetryError as e:
+            raise e.last_attempt._exception from e
 
     async def create_handler(self, race_data):
         """
@@ -115,7 +123,7 @@ class Bot:
         cls = self.get_handler_class()
         kwargs = self.get_handler_kwargs(ws_conn, self.state[race_name])
 
-        handler = cls(**kwargs)
+        handler = cls(bot=self, **kwargs)
 
         self.logger.info(
             'Created handler for %(race)s'
@@ -195,6 +203,109 @@ class Bot:
                         )
 
             await asyncio.sleep(self.scan_races_every)
+
+    async def join_race_room(self, race_name, force=False):
+        """
+        Retrieve current race information for the requested race_name and
+        joins that room, if the room isn't already being handled.  If it's
+        already handled, no action is taken.
+
+        This is useful if the room is unlisted, and as a result refresh_races
+        would be unable to find and join the race room.
+
+        `race_name` is in the format of categoryslug/adjective-verb-0123
+        """
+        def done(task_name, *args):
+            del self.handlers[task_name]
+
+        self.logger.info(f'Attempting to join {race_name}')
+
+        if not race_name.split('/')[0] == self.category_slug:
+            # TODO create a real exception class for this
+            raise Exception('Race is not for the bot\'s category category.')
+
+        try:
+            async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(5),
+                    retry=retry_if_exception_type(aiohttp.ClientResponseError),
+                    wait=wait_exponential(multiplier=1, min=4, max=10)):
+                with attempt:
+                    async with self.http.get(
+                            self.http_uri(f'/{race_name}/data'),
+                            ssl=self.ssl_context,
+                    ) as resp:
+                        data = json.loads(await resp.read())
+        except RetryError as e:
+            raise e.last_attempt._exception from e
+
+        name = data['name']
+
+        if name in self.handlers:
+            self.logger.info(f'Returning existing handler for {name}')
+            return self.handlers[name]
+
+        try:
+            async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(5),
+                    retry=retry_if_exception_type(aiohttp.ClientResponseError),
+                    wait=wait_exponential(multiplier=1, min=4, max=10)):
+                with attempt:
+                    async with self.http.get(
+                        self.http_uri(data.get('data_url')),
+                        ssl=self.ssl_context,
+                    ) as resp:
+                        race_data = json.loads(await resp.read())
+        except RetryError as e:
+            raise e.last_attempt._exception from e
+
+        if self.should_handle(race_data) or force:
+            handler = await self.create_handler(race_data)
+            self.handlers[name] = self.loop.create_task(handler.handle())
+            self.handlers[name].add_done_callback(partial(done, name))
+            handler.data = data
+
+            return handler
+        else:
+            if name in self.state:
+                del self.state[name]
+            self.logger.info(
+                'Ignoring %(race)s by configuration.'
+                % {'race': race_data.get('name')}
+            )
+
+    async def startrace(self, **kwargs):
+        """
+        Create a race.
+
+        Creates a handler for the room and returns a handler object.
+        """
+        if kwargs.get('goal') and kwargs.get('custom_goal'):
+            # TODO use a specific error class
+            raise Exception('Either a goal or custom_goal can be specified, but not both.')
+
+        try:
+            async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(5),
+                    retry=retry_if_exception_type(aiohttp.ClientResponseError),
+                    wait=wait_exponential(multiplier=1, min=4, max=10)):
+                with attempt:
+                    async with self.http.post(
+                        url=self.http_uri(f'/o/{self.category_slug}/startrace'),
+                        data=kwargs,
+                        ssl=self.ssl_context,
+                        headers={
+                            'Authorization': 'Bearer ' + self.access_token,
+                        }
+                    ) as resp:
+                        headers = resp.headers
+        except RetryError as e:
+            raise e.last_attempt._exception from e
+
+        if 'Location' in headers:
+            race_name = headers['Location'][1:]
+            return await self.join_race_room(race_name)
+
+        raise Exception('Received an unexpected response when creating a race.')
 
     def handle_exception(self, loop, context):
         """
