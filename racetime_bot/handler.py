@@ -1,5 +1,6 @@
 import uuid
 
+import aiohttp
 import isodate
 from aiohttp import ClientWebSocketResponse, ClientResponseError
 from tenacity import RetryError, AsyncRetrying, stop_after_attempt, retry_if_exception_type, wait_exponential
@@ -420,15 +421,31 @@ class RaceHandler:
             'race': self.data.get('name'),
         })
         await self.begin()
-        while True:
+        error_count = 0
+        while True and error_count < 10:
             try:
                 data = await self.ws.receive_json()
                 await self.consume(data)
+                error_count = 0
             except TypeError:
+                error_count += 1
                 message = await self.ws.receive()
-                self.logger.error(f"Received invalid data of type {message.type}. Closing handler for {self.data.get('name')}...")
-                break
+                self.logger.error(f"Received invalid data of type {message.type}. Recovering handler for {self.data.get('name')}...")
+                if message.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSED):
+                    self.logger.warning("Websocket was closed.")
+                    self.ws = await self.bot.http.ws_connect(
+                        self.bot.ws_uri(self.data.get('websocket_bot_url')),
+                        headers={
+                            'Authorization': 'Bearer ' + self.bot.access_token,
+                        },
+                        ssl=self.bot.ssl_context if self.bot.ssl_context is not None else self.bot.racetime_secure,
+                    )
+                    if self.ws.closed:
+                        self.logger.warning(f"Websocket for {self.data.get('name')} is still closed.")
+                    else:
+                        self.logger.info(f"Websocket for {self.data.get('name')} re-established.")
             except ValueError:
+                error_count += 1
                 message = await self.ws.receive()
                 self.logger.warning(f"Ignored message that was invalid json of type {message.type}.")
             if self.should_stop():
