@@ -426,8 +426,8 @@ class RaceHandler:
                 await self.consume(data)
             except TypeError:
                 message = await self.ws.receive()
-                self.logger.warning(f"Received invalid data of type {message.type}")
-                print(message.data)
+                self.logger.error(f"Received invalid data of type {message.type}. Closing handler for {self.data.get('name')}...")
+                break
             except ValueError:
                 message = await self.ws.receive()
                 self.logger.warning(f"Ignored message that was invalid json of type {message.type}.")
