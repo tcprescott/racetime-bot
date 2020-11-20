@@ -432,7 +432,7 @@ class RaceHandler:
                 message = await self.ws.receive()
                 self.logger.error(f"Received invalid data of type {message.type}. Recovering handler for {self.data.get('name')}...")
                 if message.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING, aiohttp.WSMsgType.CLOSED):
-                    self.logger.warning("Websocket was closed.")
+                    self.logger.warning(f"Websocket for {self.data.get('name')} was closed.")
                     self.ws = await self.bot.http.ws_connect(
                         self.bot.ws_uri(self.data.get('websocket_bot_url')),
                         headers={
@@ -443,7 +443,7 @@ class RaceHandler:
                     if self.ws.closed:
                         self.logger.warning(f"Websocket for {self.data.get('name')} is still closed.")
                     else:
-                        self.logger.info(f"Websocket for {self.data.get('name')} re-established.")
+                        self.logger.warning(f"Websocket for {self.data.get('name')} re-established.")
             except ValueError:
                 error_count += 1
                 message = await self.ws.receive()
