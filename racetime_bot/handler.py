@@ -197,6 +197,7 @@ class RaceHandler:
         settings['streaming_required'] = self.data['streaming_required']
         settings['auto_start'] = self.data['auto_start']
         settings['allow_comments'] = self.data['allow_comments']
+        settings['hide_comments'] = self.data.get('hide_comments', False)
         settings['allow_midrace_chat'] = self.data['allow_midrace_chat']
         settings['allow_non_entrant_chat'] = self.data['allow_non_entrant_chat']
         settings['chat_message_delay'] = round(isodate.parse_duration(self.data['chat_message_delay']).total_seconds())
