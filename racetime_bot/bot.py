@@ -124,6 +124,7 @@ class Bot:
         kwargs = self.get_handler_kwargs(ws_conn, self.state[race_name])
 
         handler = cls(bot=self, **kwargs)
+        handler.data = race_data
 
         self.logger.info(
             'Created handler for %(race)s'
@@ -244,25 +245,10 @@ class Bot:
             self.logger.info(f'Returning existing handler for {name}')
             return self.handlers[name]
 
-        try:
-            async for attempt in AsyncRetrying(
-                    stop=stop_after_attempt(5),
-                    retry=retry_if_exception_type(aiohttp.ClientResponseError),
-                    wait=wait_exponential(multiplier=1, min=4, max=10)):
-                with attempt:
-                    async with self.http.get(
-                        self.http_uri(data.get('data_url')),
-                        ssl=self.ssl_context,
-                    ) as resp:
-                        race_data = json.loads(await resp.read())
-        except RetryError as e:
-            raise e.last_attempt._exception from e
-
-        if self.should_handle(race_data) or force:
-            handler = await self.create_handler(race_data)
+        if self.should_handle(data) or force:
+            handler = await self.create_handler(data)
             self.handlers[name] = self.loop.create_task(handler.handle())
             self.handlers[name].add_done_callback(partial(done, name))
-            handler.data = data
 
             return handler
         else:
@@ -270,7 +256,7 @@ class Bot:
                 del self.state[name]
             self.logger.info(
                 'Ignoring %(race)s by configuration.'
-                % {'race': race_data.get('name')}
+                % {'race': data.get('name')}
             )
 
     async def startrace(self, **kwargs):
