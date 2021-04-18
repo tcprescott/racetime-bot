@@ -113,7 +113,7 @@ class RaceHandler:
         message = data.get('message', {})
 
         if message.get('is_bot') or message.get('is_system'):
-            self.logger.info('Ignoring bot/system message.')
+            self.logger.debug('Ignoring bot/system message.')
             return
 
         words = message.get('message', '').split(' ')
@@ -121,7 +121,7 @@ class RaceHandler:
             method = 'ex_' + words[0][len(self.command_prefix):]
             args = words[1:]
             if hasattr(self, method):
-                self.logger.info('[%(race)s] Calling handler for %(word)s' % {
+                self.logger.debug('[%(race)s] Calling handler for %(word)s' % {
                     'race': self.data.get('name'),
                     'word': words[0],
                 })
@@ -154,7 +154,7 @@ class RaceHandler:
                 'guid': str(uuid.uuid4()),
             }
         })
-        self.logger.info('[%(race)s] Message: "%(message)s"' % {
+        self.logger.debug('[%(race)s] Message: "%(message)s"' % {
             'race': self.data.get('name'),
             'message': message,
         })

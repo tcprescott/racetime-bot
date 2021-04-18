@@ -7,6 +7,8 @@ from tenacity import RetryError, AsyncRetrying, stop_after_attempt, retry_if_exc
 
 from .handler import RaceHandler
 
+class TaskHandler:
+    pass
 
 class Bot:
     """
@@ -49,6 +51,8 @@ class Bot:
         self.client_secret = client_secret
 
         self.http = aiohttp.ClientSession(raise_for_status=True)
+
+        self.join_lock = asyncio.Lock()
 
     def get_handler_class(self):
         """
@@ -144,6 +148,16 @@ class Bot:
         while True:
             self.logger.info('Get new access token')
             self.access_token, self.reauthorize_every = await self.authorize()
+
+            # close existing websocket connections so a new one can be established
+            # with a new bot token
+            for name in self.handlers:
+                try:
+                    await asyncio.wait_for(self.handlers[name].handler.ws.close(), timeout=30)
+                    print(self.handlers[name].handler.ws.closed)
+                except asyncio.TimeoutError:
+                    self.logger.exception("Timed out waiting for websocket to close to allow for reconnection.")
+
             delay = self.reauthorize_every
             if delay > 600:
                 # Get a token a bit earlier so that we don't get caught out by
@@ -164,7 +178,7 @@ class Bot:
             del self.handlers[task_name]
 
         while True:
-            self.logger.info('Refresh races')
+            self.logger.debug('Refresh races')
             try:
                 async with self.http.get(
                         self.http_uri(f'/{self.category_slug}/data'),
@@ -192,9 +206,12 @@ class Bot:
                         await asyncio.sleep(self.scan_races_every)
                         continue
                     if self.should_handle(race_data):
-                        handler = await self.create_handler(race_data)
-                        self.handlers[name] = self.loop.create_task(handler.handle())
-                        self.handlers[name].add_done_callback(partial(done, name))
+                        async with self.join_lock:
+                            handler = await self.create_handler(race_data)
+                            self.handlers[name] = TaskHandler()
+                            self.handlers[name].task = self.loop.create_task(handler.handle())
+                            self.handlers[name].task.add_done_callback(partial(done, name))
+                            self.handlers[name].handler = handler
                     else:
                         if name in self.state:
                             del self.state[name]
@@ -246,9 +263,12 @@ class Bot:
             return self.handlers[name]
 
         if self.should_handle(data) or force:
-            handler = await self.create_handler(data)
-            self.handlers[name] = self.loop.create_task(handler.handle())
-            self.handlers[name].add_done_callback(partial(done, name))
+            async with self.join_lock:
+                handler = await self.create_handler(data)
+                self.handlers[name] = TaskHandler()
+                self.handlers[name].task = self.loop.create_task(handler.handle())
+                self.handlers[name].task.add_done_callback(partial(done, name))
+                self.handlers[name].handler = handler
 
             return handler
         else:
