@@ -220,7 +220,7 @@ class RaceHandler:
                 settings[keyword] = kwargs[keyword]
 
         if not status in ['open', 'invitational']:
-            for k in ['goal', 'custom_goal', 'start_delay', 'time_limit', 'streaming_required', 'auto_start']:
+            for k in ['goal', 'custom_goal', 'start_delay', 'time_limit', 'streaming_required', 'auto_start', 'allow_prerace_chat']:
                 del settings[k]
 
         try:
