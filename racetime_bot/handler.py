@@ -73,7 +73,7 @@ class RaceHandler:
         """
         msg_type = data.get('type')
 
-        self.logger.info('[%(race)s] Received %(msg_type)s' % {
+        self.logger.debug('[%(race)s] Received %(msg_type)s' % {
             'race': self.data.get('name'),
             'msg_type': msg_type,
         })
@@ -82,7 +82,7 @@ class RaceHandler:
         if msg_type and hasattr(self, method):
             await getattr(self, method)(data)
         else:
-            self.logger.info(f'No handler for {msg_type}, ignoring.')
+            self.logger.debug(f'No handler for {msg_type}, ignoring.')
 
     async def end(self):
         """
