@@ -194,31 +194,35 @@ class Bot:
                 self.races[race.get('name')] = race
 
             for name, summary_data in self.races.items():
-                if name not in self.handlers:
-                    try:
-                        async with self.http.get(
-                            self.http_uri(summary_data.get('data_url')),
-                            ssl=self.ssl_context,
-                        ) as resp:
-                            race_data = json.loads(await resp.read())
-                    except Exception:
-                        self.logger.error('Fatal error when attempting to retrieve summary data.', exc_info=True)
-                        await asyncio.sleep(self.scan_races_every)
-                        continue
-                    if self.should_handle(race_data):
-                        async with self.join_lock:
-                            handler = await self.create_handler(race_data)
+                async with self.join_lock:
+                    if name not in self.handlers:
+                        try:
+                            async with self.http.get(
+                                self.http_uri(summary_data.get('data_url')),
+                                ssl=self.ssl_context,
+                            ) as resp:
+                                race_data = json.loads(await resp.read())
+                        except Exception:
+                            self.logger.error('Fatal error when attempting to retrieve summary data.', exc_info=True)
+                            await asyncio.sleep(self.scan_races_every)
+                            continue
+                        if self.should_handle(race_data):
+                            try:
+                                handler = await self.create_handler(race_data)
+                            except Exception as e:
+                                self.logger.exception("Failed to create handler.")
+                                continue
                             self.handlers[name] = TaskHandler()
                             self.handlers[name].task = self.loop.create_task(handler.handle())
                             self.handlers[name].task.add_done_callback(partial(done, name))
                             self.handlers[name].handler = handler
-                    else:
-                        if name in self.state:
-                            del self.state[name]
-                        self.logger.info(
-                            'Ignoring %(race)s by configuration.'
-                            % {'race': race_data.get('name')}
-                        )
+                        else:
+                            if name in self.state:
+                                del self.state[name]
+                            self.logger.info(
+                                'Ignoring %(race)s by configuration.'
+                                % {'race': race_data.get('name')}
+                            )
 
             await asyncio.sleep(self.scan_races_every)
 
@@ -258,26 +262,26 @@ class Bot:
 
         name = data['name']
 
-        if name in self.handlers:
-            self.logger.info(f'Returning existing handler for {name}')
-            return self.handlers[name]
+        async with self.join_lock:
+            if name in self.handlers:
+                self.logger.info(f'Returning existing handler for {name}')
+                return self.handlers[name]
 
-        if self.should_handle(data) or force:
-            async with self.join_lock:
+            if self.should_handle(data) or force:
                 handler = await self.create_handler(data)
                 self.handlers[name] = TaskHandler()
                 self.handlers[name].task = self.loop.create_task(handler.handle())
                 self.handlers[name].task.add_done_callback(partial(done, name))
                 self.handlers[name].handler = handler
 
-            return handler
-        else:
-            if name in self.state:
-                del self.state[name]
-            self.logger.info(
-                'Ignoring %(race)s by configuration.'
-                % {'race': data.get('name')}
-            )
+                return handler
+            else:
+                if name in self.state:
+                    del self.state[name]
+                self.logger.info(
+                    'Ignoring %(race)s by configuration.'
+                    % {'race': data.get('name')}
+                )
 
     async def startrace(self, **kwargs):
         """
