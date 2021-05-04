@@ -7,8 +7,10 @@ from tenacity import RetryError, AsyncRetrying, stop_after_attempt, retry_if_exc
 
 from .handler import RaceHandler
 
+
 class TaskHandler:
     pass
+
 
 class Bot:
     """
@@ -23,6 +25,7 @@ class Bot:
     other than connect to the room and log the messages.
     """
     racetime_host = 'racetime.gg'
+    racetime_port = None
     racetime_secure = True
     scan_races_every = 30
     reauthorize_every = 36000
@@ -345,6 +348,7 @@ class Bot:
         return self.uri(
             proto='https' if self.racetime_secure else 'http',
             url=url,
+            port=self.racetime_port
         )
 
     def ws_uri(self, url):
@@ -354,12 +358,21 @@ class Bot:
         return self.uri(
             proto='wss' if self.racetime_secure else 'ws',
             url=url,
+            port=self.racetime_port
         )
 
-    def uri(self, proto, url):
+    def uri(self, proto, url, port=None):
         """
         Generate a URI from the given protocol and URL path fragment.
         """
+        if port:
+            return '%(proto)s://%(host)s:%(port)s%(url)s' % {
+                'proto': proto,
+                'host': self.racetime_host,
+                'url': url,
+                'port': port,
+            }
+
         return '%(proto)s://%(host)s%(url)s' % {
             'proto': proto,
             'host': self.racetime_host,
