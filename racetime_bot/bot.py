@@ -378,3 +378,20 @@ class Bot:
             'host': self.racetime_host,
             'url': url,
         }
+
+    async def get_team(self, team_name):
+        try:
+            async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(5),
+                    retry=retry_if_exception_type(aiohttp.ClientResponseError),
+                    wait=wait_exponential(multiplier=1, min=4, max=10)):
+                with attempt:
+                    async with self.http.get(
+                            self.http_uri(f'/team/{team_name}/data'),
+                            ssl=self.ssl_context,
+                    ) as resp:
+                        data = json.loads(await resp.read())
+        except RetryError as e:
+            raise e.last_attempt._exception from e
+
+        return data
