@@ -221,7 +221,10 @@ class RaceHandler:
 
         if not status in ['open', 'invitational']:
             for k in ['goal', 'custom_goal', 'start_delay', 'time_limit', 'streaming_required', 'auto_start', 'allow_prerace_chat']:
-                del settings[k]
+                try:
+                    del settings[k]
+                except KeyError:
+                    continue
 
         try:
             async for attempt in AsyncRetrying(
