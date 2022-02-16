@@ -129,6 +129,7 @@ class RaceHandler:
                     await getattr(self, method)(args, message)
                 except Exception as e:
                     self.logger.error('Command raised exception.', exc_info=True)
+                    await self.send_message(f'Command raised exception: {str(e)}')
 
 
     async def race_data(self, data):
