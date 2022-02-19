@@ -248,6 +248,20 @@ class RaceHandler:
 
         raise Exception('Received an unexpected response while editing a race.')
 
+    async def set_bot_raceinfo(self, info):
+        """
+        Set the `info_bot` field on the race room's data.
+        """
+        await self.ws.send_json({
+            'action': 'setinfo',
+            'data': {'info_bot': info}
+        })
+
+        self.logger.info('[%(race)s] Set info: "%(info)s"' % {
+            'race': self.data.get('name'),
+            'info': info,
+        })
+
     async def set_raceinfo(self, info, overwrite=False, prefix=True):
         """
         Set the `info` field on the race room's data.
@@ -257,18 +271,18 @@ class RaceHandler:
         You can change this to suffix with `prefix=False`, or disable this
         behaviour entirely with `overwrite=True`.
         """
-        if self.data.get('info') and not overwrite:
+        if self.data.get('info_user') and not overwrite:
             if prefix:
-                info = info + ' | ' + self.data.get('info')
+                info = info + ' | ' + self.data.get('info_user')
             else:
                 info = self.data.get('info') + ' | ' + info
 
         await self.ws.send_json({
             'action': 'setinfo',
-            'data': {'info': info}
+            'data': {'info_user': info}
         })
-        self.logger.info('[%(race)s] Set info: "%(info)s"' % {
-            'race': self.data.get('name'),
+        self.logger.info('[%(race)s] Set user info: "%(info)s"' % {
+            'race': self.data.get('info_user'),
             'info': info,
         })
 
