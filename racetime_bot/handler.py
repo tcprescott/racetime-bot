@@ -264,9 +264,9 @@ class RaceHandler:
 
     async def set_raceinfo(self, info, overwrite=False, prefix=True):
         """
-        Set the `info` field on the race room's data.
+        Set the `info_user` field on the race room's data.
 
-        `info` should be the information you wish to set. By default, this
+        `info_user` should be the information you wish to set. By default, this
         method will prefix your information with the existing info, if needed.
         You can change this to suffix with `prefix=False`, or disable this
         behaviour entirely with `overwrite=True`.
@@ -275,7 +275,7 @@ class RaceHandler:
             if prefix:
                 info = info + ' | ' + self.data.get('info_user')
             else:
-                info = self.data.get('info') + ' | ' + info
+                info = self.data.get('info_user') + ' | ' + info
 
         await self.ws.send_json({
             'action': 'setinfo',
