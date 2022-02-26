@@ -192,7 +192,7 @@ class RaceHandler:
             settings['goal'] = self.data['goal']['name']
 
         settings['unlisted'] = self.data['unlisted']
-        settings['info'] = self.data['info']
+        settings['info_user'] = self.data['info_user']
         settings['start_delay'] = round(isodate.parse_duration(self.data['start_delay']).total_seconds())
         settings['time_limit'] = round(isodate.parse_duration(self.data['time_limit']).total_seconds()/3600)
         settings['streaming_required'] = self.data['streaming_required']
@@ -282,7 +282,7 @@ class RaceHandler:
             'data': {'info_user': info}
         })
         self.logger.info('[%(race)s] Set user info: "%(info)s"' % {
-            'race': self.data.get('info_user'),
+            'race': self.data.get('name'),
             'info': info,
         })
 
