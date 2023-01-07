@@ -1,6 +1,5 @@
 import asyncio
 import uuid
-import concurrent.futures
 
 import aiohttp
 import isodate
@@ -150,7 +149,7 @@ class RaceHandler:
 
         `message` should be the message string you want to send.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'message',
             'data': {
                 'message': message,
@@ -254,7 +253,7 @@ class RaceHandler:
         """
         Set the `info_bot` field on the race room's data.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'setinfo',
             'data': {'info_bot': info}
         })
@@ -279,7 +278,7 @@ class RaceHandler:
             else:
                 info = self.data.get('info_user') + ' | ' + info
 
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'setinfo',
             'data': {'info_user': info}
         })
@@ -292,7 +291,7 @@ class RaceHandler:
         """
         Set the room in an open state.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'make_open'
         })
         self.logger.info('[%(race)s] Make open' % {
@@ -303,7 +302,7 @@ class RaceHandler:
         """
         Set the room in an invite-only state.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'make_invitational'
         })
         self.logger.info('[%(race)s] Make invitational' % {
@@ -314,7 +313,7 @@ class RaceHandler:
         """
         Forces a start of the race.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'begin'
         })
         self.logger.info('[%(race)s] Forced start' % {
@@ -325,7 +324,7 @@ class RaceHandler:
         """
         Forcibly cancels a race.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'cancel'
         })
         self.logger.info('[%(race)s] cancelled' % {
@@ -338,7 +337,7 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'invite',
             'data': {
                 'user': user
@@ -355,7 +354,7 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'accept_request',
             'data': {
                 'user': user
@@ -372,7 +371,7 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'force_unready',
             'data': {
                 'user': user
@@ -389,7 +388,7 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'remove_entrant',
             'data': {
                 'user': user
@@ -406,7 +405,7 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'add_monitor',
             'data': {
                 'user': user
@@ -423,7 +422,7 @@ class RaceHandler:
 
         `user` should be the hashid of the user.
         """
-        await self.send_json({
+        await self.ws.send_json({
             'action': 'remove_monitor',
             'data': {
                 'user': user
@@ -433,16 +432,6 @@ class RaceHandler:
             'race': self.data.get('name'),
             'user': user
         })
-
-    async def send_json(self, data):
-        """
-        Wrapper around the websocket's send_json method.
-        """
-        # try:
-        await self.ws.send_json(data)
-        # except ConnectionResetError:
-        #     await asyncio.sleep(5)
-        #     await self.ws.send_json(data)
 
     async def handle(self):
         """
