@@ -127,7 +127,7 @@ class RaceHandler:
                     'word': words[0],
                 })
                 try:
-                    asyncio.create_task(getattr(self, method)(args, message))
+                    await getattr(self, method)(args, message)
                 except Exception as e:
                     self.logger.error('Command raised exception.', exc_info=True)
                     await self.send_message(f'Command raised exception: {str(e)}')
@@ -448,7 +448,7 @@ class RaceHandler:
             loop_count += 1
             try:
                 data = await self.ws.receive_json()
-                await self.consume(data)
+                asyncio.create_task(self.consume(data))
                 error_count = 0
             except TypeError:
                 error_count += 1
