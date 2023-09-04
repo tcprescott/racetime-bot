@@ -451,12 +451,12 @@ class RaceHandler:
 
         `message` should be the hashid of the message.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'pin_message',
             'data': {
                 'message': message,
             }
-        }))
+        })
         self.logger.info('[%(race)s] pinned chat message %(message)s' % {
             'race': self.data.get('name'),
             'message': message
@@ -468,12 +468,12 @@ class RaceHandler:
 
         `message` should be the hashid of the message.
         """
-        await self.ws.send(json.dumps({
+        await self.ws.send_json({
             'action': 'unpin_message',
             'data': {
                 'message': message,
             }
-        }))
+        })
         self.logger.info('[%(race)s] unpinned chat message %(message)s' % {
             'race': self.data.get('name'),
             'message': message
