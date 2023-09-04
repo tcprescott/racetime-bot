@@ -53,6 +53,7 @@ class Bot:
         self.client_id = client_id
         self.client_secret = client_secret
 
+        self.access_token = None
         self.http = aiohttp.ClientSession(raise_for_status=True)
 
         self.join_lock = asyncio.Lock()
