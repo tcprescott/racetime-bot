@@ -6,7 +6,7 @@ import isodate
 from aiohttp import ClientWebSocketResponse, ClientResponseError
 from tenacity import RetryError, AsyncRetrying, stop_after_attempt, retry_if_exception_type, wait_exponential
 
-
+from racetime_bot.utils import arg_parser
 
 class RaceHandler:
     """
@@ -108,7 +108,7 @@ class RaceHandler:
         This method assumes a standard bot operation. It checks the first word
         in the message, and if it looks like an exclaimation command like
         "!seed", then it will call the relevant method, i.e.
-        `self.ex_seed(args, message)` (where `args` is the remainder of the
+        `self.ex_seed(args, message, positional_args, keyword_args)` (where `args` is the remainder of the
         message split up by words, and message is the original message blob).
         """
         message = data.get('message', {})
@@ -119,15 +119,30 @@ class RaceHandler:
 
         words = message.get('message', '').split(' ')
         if words and words[0].startswith(self.command_prefix):
+            # look to see if there's a command handler for this
             method = 'ex_' + words[0][len(self.command_prefix):]
-            args = words[1:]
             if hasattr(self, method):
+                args = words[1:]
                 self.logger.debug('[%(race)s] Calling handler for %(word)s' % {
                     'race': self.data.get('name'),
                     'word': words[0],
                 })
                 try:
                     await getattr(self, method)(args, message)
+                except Exception as e:
+                    self.logger.error('Command raised exception.', exc_info=True)
+                    await self.send_message(f'Command raised exception: {str(e)}')
+
+            # if not, look to see if there's a new command handler for this
+            method = 'ex2_' + words[0][len(self.command_prefix):]
+            if hasattr(self, method):
+                self.logger.debug('[%(race)s] Calling new handler for %(word)s' % {
+                    'race': self.data.get('name'),
+                    'word': words[0],
+                })
+                try:
+                    positional_args, keyword_args = arg_parser(message.get('message', ''))
+                    await getattr(self, method)(message, positional_args, keyword_args)
                 except Exception as e:
                     self.logger.error('Command raised exception.', exc_info=True)
                     await self.send_message(f'Command raised exception: {str(e)}')

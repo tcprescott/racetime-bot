@@ -3,6 +3,7 @@ from functools import wraps
 from .bot import Bot
 from .handler import RaceHandler
 from . import msg_actions
+from . import utils
 
 __all__ = [
     'Bot',
@@ -12,6 +13,7 @@ __all__ = [
     'moderator_cmd',
     'monitor_cmd',
     'msg_actions',
+    'utils',
 ]
 
 
