@@ -45,7 +45,7 @@ class RaceHandler:
         self.command_prefix = command_prefix
         self.bot = bot
 
-    def should_stop(self):
+    async def should_stop(self):
         """
         Determine if the handler should be terminated. This is checked after
         every receieved message.
@@ -158,26 +158,29 @@ class RaceHandler:
         """
         self.data = data.get('race')
 
-    async def send_message(self, message, actions=None, pinned=False):
+    async def send_message(self, message, actions=None, pinned=False, direct_to=None):
         """
         Send a chat message to the race room.
 
         `message` should be the message string you want to send.
         `actions` should be a list of Action objects (or raw dict data, if you're bold).
         `pinned` will pin the message at the top of the chat window.
+        `direct_to` will send message as DM to the specified user ID.
 
         Note: for more info on setting up race actions, see `msg_actions.py`
         """
-
         if actions and not isinstance(actions, dict):
             # Assume actions is a list of Action objects
             actions = {
                 action.label: action.data for action in actions
             }
+        if direct_to and (actions or pinned):
+            raise Exception('Cannot DM a message with actions or pin')
         await self.ws.send_json({
             'action': 'message',
             'data': {
                 'message': message,
+                'direct_to': direct_to,
                 'actions': actions,
                 'pinned': pinned,
                 'guid': str(uuid.uuid4()),
@@ -187,6 +190,8 @@ class RaceHandler:
             'race': self.data.get('name'),
             'message': message,
         })
+
+
 
     async def edit(self, **kwargs):
         """
@@ -294,6 +299,8 @@ class RaceHandler:
         """
         Set the `info_user` field on the race room's data.
 
+        This method is deprecated, please switch to using `set_bot_raceinfo`.
+
         `info_user` should be the information you wish to set. By default, this
         method will prefix your information with the existing info, if needed.
         You can change this to suffix with `prefix=False`, or disable this
@@ -309,7 +316,7 @@ class RaceHandler:
             'action': 'setinfo',
             'data': {'info_user': info}
         })
-        self.logger.info('[%(race)s] Set user info: "%(info)s"' % {
+        self.logger.info('[%(race)s] [Deprecated] Set info: "%(info)s"' % {
             'race': self.data.get('name'),
             'info': info,
         })
@@ -533,6 +540,6 @@ class RaceHandler:
                 error_count += 1
                 message = await self.ws.receive()
                 self.logger.warning(f"Ignored message that was invalid json of type {message.type}.")
-            if self.should_stop():
+            if await self.should_stop():
                 await self.end()
                 break

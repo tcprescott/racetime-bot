@@ -123,7 +123,6 @@ class Bot:
             },
             ssl=self.ssl_context if self.ssl_context is not None else self.racetime_secure,
         )
-
         race_name = race_data.get('name')
         if race_name not in self.state:
             self.state[race_name] = {}
@@ -150,6 +149,9 @@ class Bot:
         needed.
         """
         while True:
+            # Divide the reauthorization interval by 2 to avoid token expiration
+            delay = self.reauthorize_every / 2
+            await asyncio.sleep(delay)
             self.logger.info('Get new access token')
             self.access_token, self.reauthorize_every = await self.authorize()
 
