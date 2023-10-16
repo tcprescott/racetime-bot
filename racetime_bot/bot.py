@@ -149,9 +149,6 @@ class Bot:
         needed.
         """
         while True:
-            # Divide the reauthorization interval by 2 to avoid token expiration
-            delay = self.reauthorize_every / 2
-            await asyncio.sleep(delay)
             self.logger.info('Get new access token')
             self.access_token, self.reauthorize_every = await self.authorize()
 
