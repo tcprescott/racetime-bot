@@ -54,7 +54,7 @@ class Bot:
         self.client_secret = client_secret
 
         self.access_token = None
-        self.http = aiohttp.ClientSession(raise_for_status=True)
+        self.http = None
 
         self.join_lock = asyncio.Lock()
 
@@ -339,6 +339,7 @@ class Bot:
         """
         Run the bot. Creates an event loop then iterates over it forever.
         """
+        self.http = aiohttp.ClientSession(raise_for_status=True)
         self.loop.create_task(self.reauthorize())
         self.loop.create_task(self.refresh_races())
         self.loop.set_exception_handler(self.handle_exception)
