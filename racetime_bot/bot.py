@@ -183,11 +183,7 @@ class Bot:
         while True:
             self.logger.debug('Refresh races')
             try:
-                async with self.http.get(
-                        self.http_uri(f'/{self.category_slug}/data'),
-                        ssl=self.ssl_context,
-                ) as resp:
-                    data = json.loads(await resp.read())
+                data = await self.get_data()
             except Exception:
                 self.logger.error('Fatal error when attempting to retrieve race data.', exc_info=True)
                 await asyncio.sleep(self.scan_races_every)
@@ -296,6 +292,13 @@ class Bot:
             # TODO use a specific error class
             raise Exception('Either a goal or custom_goal can be specified, but not both.')
 
+        data = await self.get_data()
+        goals = data.get('goals', [])
+
+        if kwargs.get('goal') not in goals:
+            self.logger.error(f'Invalid goal: {kwargs.get("goal")}.  We will instead use a custom goal.')
+            kwargs['custom_goal'] = kwargs.get('goal')
+            kwargs.pop('goal', None)
         try:
             async for attempt in AsyncRetrying(
                     stop=stop_after_attempt(5),
@@ -393,5 +396,14 @@ class Bot:
                         data = json.loads(await resp.read())
         except RetryError as e:
             raise e.last_attempt._exception from e
+
+        return data
+
+    async def get_data(self):
+        async with self.http.get(
+                self.http_uri(f'/{self.category_slug}/data'),
+                ssl=self.ssl_context,
+        ) as resp:
+            data = json.loads(await resp.read())
 
         return data
